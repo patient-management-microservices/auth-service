@@ -1,5 +1,6 @@
 package com.pm.authservice.model;
 
+import com.pm.authservice.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,9 +21,10 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = false)
-    private String password;
+    @Column(name = "password", nullable = false)
+    private String passwordHash;
 
     @Column(nullable = false)
-    private String role;
+    @Enumerated(EnumType.STRING)
+    private Role role;
 }

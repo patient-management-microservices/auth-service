@@ -1,6 +1,7 @@
 package com.pm.authservice.service;
 
 import com.pm.authservice.dto.LoginRequestDTO;
+import com.pm.authservice.dto.LoginResponseDTO;
 import com.pm.authservice.util.JwtUtil;
 import io.jsonwebtoken.JwtException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,18 +16,27 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    public AuthService(UserService userService, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthService(
+            UserService userService,
+            PasswordEncoder passwordEncoder,
+            JwtUtil jwtUtil
+    ) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
     }
 
-    public Optional<String> authenticate(LoginRequestDTO loginRequestDTO) {
+    public Optional<LoginResponseDTO> authenticate(LoginRequestDTO loginRequestDTO) {
+        String normalizedEmail = loginRequestDTO.email().trim().toLowerCase();
 
         return userService
-                .findByEmail(loginRequestDTO.email())
-                .filter(u -> passwordEncoder.matches(loginRequestDTO.password(), u.getPassword()))
-                .map(u -> jwtUtil.generateToken(u.getEmail(), u.getRole()));
+                .findByEmail(normalizedEmail)
+                .filter(user -> passwordEncoder.matches(loginRequestDTO.password(), user.getPasswordHash()))
+                .map(user -> new LoginResponseDTO(
+                        jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole()),
+                        "Bearer",
+                        jwtUtil.getExpirationMs() / 1000
+                ));
     }
 
     public boolean validateToken(String token) {
