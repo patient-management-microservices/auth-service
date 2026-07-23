@@ -82,5 +82,4 @@ public class JwtUtil {
             throw new JwtException("Invalid JWT token", je);
         }
     }
-
 }
