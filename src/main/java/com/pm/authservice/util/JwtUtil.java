@@ -1,8 +1,11 @@
 package com.pm.authservice.util;
 
 import com.pm.authservice.enums.Role;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.SignatureException;
 import io.jsonwebtoken.security.Keys;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +68,15 @@ public class JwtUtil {
                 log.warn("JWT validation failed because issuer or audience did not match expected values");
                 throw new JwtException("JWT token has invalid issuer or audience");
             }
+        } catch (ExpiredJwtException eje) {
+            log.warn("JWT validation failed because token is expired");
+            throw new JwtException("JWT token is expired", eje);
+        } catch (MalformedJwtException mje) {
+            log.warn("JWT validation failed because token is malformed");
+            throw new JwtException("JWT token is malformed", mje);
+        } catch (SignatureException se) {
+            log.warn("JWT validation failed because token signature is invalid");
+            throw new JwtException("JWT token signature is invalid", se);
         } catch (JwtException je) {
             log.debug("JWT parsing or validation failed", je);
             throw new JwtException("Invalid JWT token", je);
