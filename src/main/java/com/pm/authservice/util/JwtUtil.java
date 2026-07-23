@@ -48,7 +48,7 @@ public class JwtUtil {
                 .id(UUID.randomUUID().toString())
                 .issuer(issuer)
                 .subject(email)
-                .claim("aud", audience)
+                .audience().add(audience).and()
                 .claim("userId", userId.toString())
                 .claim("role", role.name())
                 .issuedAt(new Date())
@@ -64,7 +64,7 @@ public class JwtUtil {
                     .parseSignedClaims(token)
                     .getPayload();
 
-            if (!issuer.equals(claims.getIssuer()) || !audience.equals(claims.get("aud", String.class))) {
+            if (!issuer.equals(claims.getIssuer()) || !claims.getAudience().contains(audience)) {
                 log.warn("JWT validation failed because issuer or audience did not match expected values");
                 throw new JwtException("JWT token has invalid issuer or audience");
             }

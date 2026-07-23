@@ -84,7 +84,7 @@ public class AuthService {
             log.debug("JWT validation successful");
             return true;
         } catch (JwtException je) {
-            log.warn("JWT validation failed: {}", je.getMessage());
+            log.warn("JWT validation failed: {} - {}", je.getClass().getSimpleName(), je.getMessage());
             return false;
         }
     }
