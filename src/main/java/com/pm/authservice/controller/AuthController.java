@@ -7,12 +7,14 @@ import com.pm.authservice.dto.RegisterResponseDTO;
 import com.pm.authservice.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
 
+@Slf4j
 @RestController
 public class AuthController {
 
@@ -26,6 +28,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO loginRequestDTO) {
 
+        log.debug("Received login request");
         Optional<LoginResponseDTO> tokenOptional = authService.authenticate(loginRequestDTO);
 
         // Unauthorized
@@ -36,6 +39,7 @@ public class AuthController {
     @Operation(summary = "Register a new user")
     @PostMapping("/register")
     public ResponseEntity<RegisterResponseDTO> register(@Valid @RequestBody RegisterRequestDTO registerRequestDTO) {
+        log.debug("Received registration request");
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(registerRequestDTO));
     }
 
@@ -44,6 +48,7 @@ public class AuthController {
     public ResponseEntity<Void> validateToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warn("Token validation request rejected because Authorization header is missing or malformed");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build(); // Bad Request
         }
 

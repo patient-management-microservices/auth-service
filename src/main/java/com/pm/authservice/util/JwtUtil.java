@@ -5,6 +5,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
 
+@Slf4j
 @Component
 public class JwtUtil {
 
@@ -38,6 +40,7 @@ public class JwtUtil {
     }
 
     public String generateToken(UUID userId, String email, Role role) {
+        log.debug("Generating JWT for userId={}, email={}, role={}", userId, email, role);
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .issuer(issuer)
@@ -59,9 +62,11 @@ public class JwtUtil {
                     .getPayload();
 
             if (!issuer.equals(claims.getIssuer()) || !audience.equals(claims.get("aud", String.class))) {
+                log.warn("JWT validation failed because issuer or audience did not match expected values");
                 throw new JwtException("JWT token has invalid issuer or audience");
             }
         } catch (JwtException je) {
+            log.debug("JWT parsing or validation failed", je);
             throw new JwtException("Invalid JWT token", je);
         }
     }
