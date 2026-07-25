@@ -8,5 +8,4 @@ public record RegisterResponseDTO(
         UUID id,
         String email,
         Role role
-) {
-}
+) {}
