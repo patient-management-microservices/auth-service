@@ -1,7 +1,8 @@
 package com.pm.authservice.dto;
 
 public record LoginResponseDTO (
-    String token,
+    String accessToken,
+    String refreshToken,
     String tokenType,
     long expiresIn
 ) {}

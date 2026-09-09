@@ -1,43 +1,60 @@
 package com.pm.authservice.util;
 
 import com.pm.authservice.enums.Role;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.SignatureException;
-import io.jsonwebtoken.security.Keys;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.security.Key;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HexFormat;
 import java.util.UUID;
 
 @Slf4j
 @Component
 public class JwtUtil {
 
-    private final Key secretKey;
+    private final PrivateKey privateKey;
+    private final PublicKey publicKey;
     @Getter
-    private final long expirationMs;
+    private final long accessExpirationMs;
+    @Getter
+    private final long refreshExpirationMs;
     private final String issuer;
     private final String audience;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public JwtUtil(
-            @Value("${jwt.secret}") String secret,
-            @Value("${jwt.expiration-ms:36000000}") long expirationMs,
+            @Value("${jwt.private-key-path}") String privateKeyPath,
+            @Value("${jwt.public-key-path}") String publicKeyPath,
+            @Value("${jwt.access-expiration-ms:900000}") long accessExpirationMs,
+            @Value("${jwt.refresh-expiration-ms:604800000}") long refreshExpirationMs,
             @Value("${jwt.issuer:auth-service}") String issuer,
             @Value("${jwt.audience:patient-management}") String audience
     ) {
-        byte[] keyBytes = Base64.getDecoder().decode(secret.getBytes(StandardCharsets.UTF_8));
-        this.secretKey = Keys.hmacShaKeyFor(keyBytes);
-        this.expirationMs = expirationMs;
+        this.privateKey = loadPrivateKey(privateKeyPath);
+        this.publicKey = loadPublicKey(publicKeyPath);
+        this.accessExpirationMs = accessExpirationMs;
+        this.refreshExpirationMs = refreshExpirationMs;
         this.issuer = issuer;
         this.audience = audience;
     }
@@ -52,14 +69,14 @@ public class JwtUtil {
                 .claim("userId", userId.toString())
                 .claim("role", role.name())
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationMs))
-                .signWith(secretKey)
+                .expiration(new Date(System.currentTimeMillis() + accessExpirationMs))
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
-    public void validateToken(String token) {
+    public Claims validateToken(String token) {
         try {
-            var claims = Jwts.parser().verifyWith((SecretKey) secretKey)
+            Claims claims = Jwts.parser().verifyWith(publicKey)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
@@ -68,6 +85,8 @@ public class JwtUtil {
                 log.warn("JWT validation failed because issuer or audience did not match expected values");
                 throw new JwtException("JWT token has invalid issuer or audience");
             }
+
+            return claims;
         } catch (ExpiredJwtException eje) {
             log.warn("JWT validation failed because token is expired");
             throw new JwtException("JWT token is expired", eje);
@@ -80,6 +99,64 @@ public class JwtUtil {
         } catch (JwtException je) {
             log.debug("JWT parsing or validation failed", je);
             throw new JwtException("Invalid JWT token", je);
+        }
+    }
+
+    /**
+     * Generates a cryptographically secure opaque refresh token (not a JWT).
+     * Returns the raw Base64URL-encoded token string.
+     */
+    public String generateRefreshToken() {
+        byte[] randomBytes = new byte[64];
+        secureRandom.nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+    }
+
+    /**
+     * Hashes a refresh token using SHA-256 for secure storage.
+     * Never store plaintext refresh tokens in the database.
+     */
+    public String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes());
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not available", e);
+        }
+    }
+
+    private PrivateKey loadPrivateKey(String path) {
+        try {
+            String keyContent = Files.readString(Path.of(path));
+            String keyPem = keyContent
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replaceAll("\\s", "");
+            byte[] keyBytes = Base64.getDecoder().decode(keyPem);
+            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory factory = KeyFactory.getInstance("RSA");
+            log.info("Successfully loaded RSA private key from: {}", path);
+            return factory.generatePrivate(spec);
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new RuntimeException("Failed to load RSA private key from: " + path, e);
+        }
+    }
+
+    private PublicKey loadPublicKey(String path) {
+        try {
+            String keyContent = Files.readString(Path.of(path));
+            String keyPem = keyContent
+                    .replace("-----BEGIN PUBLIC KEY-----", "")
+                    .replace("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s", "");
+            byte[] keyBytes = Base64.getDecoder().decode(keyPem);
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+            KeyFactory factory = KeyFactory.getInstance("RSA");
+            log.info("Successfully loaded RSA public key from: {}", path);
+            return factory.generatePublic(spec);
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new RuntimeException("Failed to load RSA public key from: " + path, e);
         }
     }
 }

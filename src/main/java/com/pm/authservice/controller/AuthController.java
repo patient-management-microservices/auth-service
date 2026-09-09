@@ -19,9 +19,11 @@ import java.util.Optional;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.pm.authservice.service.RefreshTokenService refreshTokenService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, com.pm.authservice.service.RefreshTokenService refreshTokenService) {
         this.authService = authService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Operation(summary = "Generate JWT token on user login")
@@ -43,18 +45,19 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(registerRequestDTO));
     }
 
-    @Operation(summary = "Validate Token")
-    @GetMapping("/validate")
-    public ResponseEntity<Void> validateToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+    @Operation(summary = "Refresh JWT access token")
+    @PostMapping("/refresh")
+    public ResponseEntity<com.pm.authservice.service.RefreshTokenService.RefreshResponse> refresh(@Valid @RequestBody com.pm.authservice.dto.RefreshTokenRequestDTO requestDTO) {
+        log.debug("Received token refresh request");
+        return ResponseEntity.ok(refreshTokenService.processRefreshToken(requestDTO.getRefreshToken()));
+    }
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("Token validation request rejected because Authorization header is missing or malformed");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build(); // Bad Request
-        }
-
-        return authService.validateToken(authHeader.substring(7))
-                ? ResponseEntity.ok().build() // ok
-                : ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); // Unauthorized
+    @Operation(summary = "Logout user and revoke refresh token")
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody com.pm.authservice.dto.RefreshTokenRequestDTO requestDTO) {
+        log.debug("Received logout request");
+        refreshTokenService.revokeRefreshToken(requestDTO.getRefreshToken());
+        return ResponseEntity.ok().build();
     }
 
 }
