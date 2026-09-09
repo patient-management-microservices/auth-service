@@ -23,6 +23,10 @@ public class UserService {
         return userRepository.existsByEmail(email);
     }
 
+    public Optional<User> findById(java.util.UUID id) {
+        return userRepository.findById(id);
+    }
+
     public User save(User user) {
         return userRepository.save(user);
     }

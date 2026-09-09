@@ -23,15 +23,19 @@ public class AuthService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final RefreshTokenService refreshTokenService;
 
     public AuthService(
             UserService userService,
             PasswordEncoder passwordEncoder,
-            JwtUtil jwtUtil
+            JwtUtil jwtUtil,
+            RefreshTokenService refreshTokenService
     ) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.refreshTokenService = refreshTokenService;
+
     }
 
     public Optional<LoginResponseDTO> authenticate(LoginRequestDTO loginRequestDTO) {
@@ -41,11 +45,16 @@ public class AuthService {
         Optional<LoginResponseDTO> loginResponse = userService
                 .findByEmail(normalizedEmail)
                 .filter(user -> passwordEncoder.matches(loginRequestDTO.password(), user.getPasswordHash()))
-                .map(user -> new LoginResponseDTO(
-                        jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole()),
-                        "Bearer",
-                        jwtUtil.getExpirationMs() / 1000
-                ));
+                .map(user -> {
+                    String accessToken = jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole());
+                    String refreshToken = refreshTokenService.createRefreshToken(user.getId());
+                    return new LoginResponseDTO(
+                            accessToken,
+                            refreshToken,
+                            "Bearer",
+                            jwtUtil.getAccessExpirationMs() / 1000
+                    );
+                });
 
         if (loginResponse.isPresent()) {
             log.info("Login successful for email={}", normalizedEmail);
@@ -76,17 +85,6 @@ public class AuthService {
                 savedUser.getId(), savedUser.getEmail(), savedUser.getRole());
 
         return new RegisterResponseDTO(savedUser.getId(), savedUser.getEmail(), savedUser.getRole());
-    }
-
-    public boolean validateToken(String token) {
-        try {
-            jwtUtil.validateToken(token);
-            log.debug("JWT validation successful");
-            return true;
-        } catch (JwtException je) {
-            log.warn("JWT validation failed: {} - {}", je.getClass().getSimpleName(), je.getMessage());
-            return false;
-        }
     }
 
 }
