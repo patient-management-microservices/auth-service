@@ -4,7 +4,10 @@ import com.pm.authservice.dto.LoginRequestDTO;
 import com.pm.authservice.dto.LoginResponseDTO;
 import com.pm.authservice.dto.RegisterRequestDTO;
 import com.pm.authservice.dto.RegisterResponseDTO;
+import com.pm.authservice.dto.RefreshTokenRequestDTO;
 import com.pm.authservice.service.AuthService;
+import com.pm.authservice.service.RefreshTokenService;
+import com.pm.authservice.service.RefreshTokenService.RefreshResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -19,9 +22,9 @@ import java.util.Optional;
 public class AuthController {
 
     private final AuthService authService;
-    private final com.pm.authservice.service.RefreshTokenService refreshTokenService;
+    private final RefreshTokenService refreshTokenService;
 
-    public AuthController(AuthService authService, com.pm.authservice.service.RefreshTokenService refreshTokenService) {
+    public AuthController(AuthService authService, RefreshTokenService refreshTokenService) {
         this.authService = authService;
         this.refreshTokenService = refreshTokenService;
     }
@@ -47,14 +50,14 @@ public class AuthController {
 
     @Operation(summary = "Refresh JWT access token")
     @PostMapping("/refresh")
-    public ResponseEntity<com.pm.authservice.service.RefreshTokenService.RefreshResponse> refresh(@Valid @RequestBody com.pm.authservice.dto.RefreshTokenRequestDTO requestDTO) {
+    public ResponseEntity<RefreshResponse> refresh(@Valid @RequestBody RefreshTokenRequestDTO requestDTO) {
         log.debug("Received token refresh request");
         return ResponseEntity.ok(refreshTokenService.processRefreshToken(requestDTO.getRefreshToken()));
     }
 
     @Operation(summary = "Logout user and revoke refresh token")
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@Valid @RequestBody com.pm.authservice.dto.RefreshTokenRequestDTO requestDTO) {
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequestDTO requestDTO) {
         log.debug("Received logout request");
         refreshTokenService.revokeRefreshToken(requestDTO.getRefreshToken());
         return ResponseEntity.ok().build();
